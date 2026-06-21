@@ -44,6 +44,14 @@ const menuSections = [
     ],
   },
   {
+    label: '事業管理',
+    items: [
+      { href: '/business', label: '収支管理', icon: 'M4 19h16M6 17V8m6 9V5m6 12v-6' },
+      { href: '/business/staff', label: 'スタッフ実績', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656-.126-1.283-.356-1.857M15 7a3 3 0 11-6 0 3 3 0 016 0z' },
+      { href: '/business/compare', label: '店舗比較', icon: 'M5 3v18m7-14v14m7-10v10M3 21h18' },
+    ],
+  },
+  {
     label: '設定',
     items: [
       { href: '/staff', label: 'スタッフ管理', icon: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z' },

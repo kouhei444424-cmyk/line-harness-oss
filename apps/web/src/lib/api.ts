@@ -66,6 +66,70 @@ export type FriendListParams = {
 
 export type FriendWithTags = Friend & { tags: Tag[] }
 
+type BizSummaryResponse = {
+  year_month: string
+  stores: Array<{
+    store_id: string
+    name: string
+    sales: number
+    cost_rent: number
+    cost_labor: number
+    cost_ad: number
+    cost_other: number
+    cost_total: number
+    profit: number
+    margin_pct: number
+    target: number
+    achievement_pct: number
+    memo: string | null
+    members: {
+      total: number
+      new: number
+      cancelled: number
+    }
+  }>
+  total: {
+    sales: number
+    cost_rent: number
+    cost_labor: number
+    cost_ad: number
+    cost_other: number
+    cost_total: number
+    profit: number
+    target: number
+    margin_pct: number
+    achievement_pct: number
+    members: {
+      total: number
+      new: number
+      cancelled: number
+    }
+  }
+}
+
+type BizStaffSalesResponse = {
+  year_month: string
+  store_id: string
+  staff: Array<{
+    id: number
+    store_id: string
+    store_name: string
+    name: string
+    role: string
+    sales: number
+    sessions: number
+    target: number
+    achieved: boolean
+    achievement_pct: number
+  }>
+}
+
+type BizStoreOption = {
+  id: string
+  name: string
+  targetMonthlyRevenue: number
+}
+
 export const api = {
   friends: {
     list: (params?: FriendListParams) => {
@@ -93,6 +157,61 @@ export const api = {
       fetchApi<ApiResponse<null>>(`/api/friends/${friendId}/tags/${tagId}`, {
         method: 'DELETE',
       }),
+  },
+  biz: {
+    summary: (params: { yearMonth: string; storeId: string }) =>
+      fetchApi<ApiResponse<BizSummaryResponse>>(
+        '/api/biz/summary?' +
+          new URLSearchParams({
+            year_month: params.yearMonth,
+            store_id: params.storeId,
+          }),
+      ),
+    upsertPl: (data: {
+      store_id: string
+      year_month: string
+      sales: number
+      cost_rent: number
+      cost_labor: number
+      cost_ad: number
+      cost_other: number
+      memo?: string | null
+    }) =>
+      fetchApi<ApiResponse<null>>('/api/biz/pl', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    staffSales: (params: { yearMonth: string; storeId: string }) =>
+      fetchApi<ApiResponse<BizStaffSalesResponse>>(
+        '/api/biz/staff-sales?' +
+          new URLSearchParams({
+            year_month: params.yearMonth,
+            store_id: params.storeId,
+          }),
+      ),
+    upsertStaffSales: (data: {
+      staff_id: number
+      year_month: string
+      sales: number
+      sessions: number
+    }) =>
+      fetchApi<ApiResponse<null>>('/api/biz/staff-sales', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    upsertMembers: (data: {
+      store_id: string
+      year_month: string
+      total: number
+      new_members: number
+      cancelled: number
+    }) =>
+      fetchApi<ApiResponse<null>>('/api/biz/members', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    stores: () =>
+      fetchApi<ApiResponse<BizStoreOption[]>>('/api/biz/stores'),
   },
   tags: {
     list: () =>
