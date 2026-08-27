@@ -285,6 +285,44 @@ friends.get('/api/friends/:id/messages', async (c) => {
   }
 });
 
+// GET /api/friends/:id/activity - aggregated message activity (no message content)
+friends.get('/api/friends/:id/activity', async (c) => {
+  try {
+    const friendId = c.req.param('id');
+    const db = c.env.DB;
+
+    const [incoming, outgoing] = await Promise.all([
+      db
+        .prepare(
+          `SELECT MAX(created_at) as lastAt, COUNT(*) as count
+           FROM messages_log WHERE friend_id = ? AND direction = 'incoming'`,
+        )
+        .bind(friendId)
+        .first<{ lastAt: string | null; count: number }>(),
+      db
+        .prepare(
+          `SELECT MAX(created_at) as lastAt, COUNT(*) as count
+           FROM messages_log WHERE friend_id = ? AND direction = 'outgoing'`,
+        )
+        .bind(friendId)
+        .first<{ lastAt: string | null; count: number }>(),
+    ]);
+
+    return c.json({
+      success: true,
+      data: {
+        lastIncomingAt: incoming?.lastAt ?? null,
+        lastOutgoingAt: outgoing?.lastAt ?? null,
+        incomingCount: incoming?.count ?? 0,
+        outgoingCount: outgoing?.count ?? 0,
+      },
+    });
+  } catch (err) {
+    console.error('GET /api/friends/:id/activity error:', err);
+    return c.json({ success: false, error: 'Internal server error' }, 500);
+  }
+});
+
 // POST /api/friends/:id/messages - send message to friend
 friends.post('/api/friends/:id/messages', async (c) => {
   try {
