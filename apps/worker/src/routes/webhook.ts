@@ -16,6 +16,7 @@ import {
 } from '@line-crm/db';
 import { fireEvent } from '../services/event-bus.js';
 import { buildMessage, expandVariables } from '../services/step-delivery.js';
+import { notifyKamenConsultationOwner } from '../services/kamen-consultation-owner-notification.js';
 import type { Env } from '../index.js';
 
 const webhook = new Hono<Env>();
@@ -38,6 +39,7 @@ webhook.post('/webhook', async (c) => {
   let channelSecret = c.env.LINE_CHANNEL_SECRET;
   let channelAccessToken = c.env.LINE_CHANNEL_ACCESS_TOKEN;
   let matchedAccountId: string | null = null;
+  let matchedChannelId: string | null = c.env.LINE_CHANNEL_ID || null;
 
   if ((body as { destination?: string }).destination) {
     const accounts = await getLineAccounts(db);
@@ -48,6 +50,7 @@ webhook.post('/webhook', async (c) => {
         channelSecret = account.channel_secret;
         channelAccessToken = account.channel_access_token;
         matchedAccountId = account.id;
+        matchedChannelId = account.channel_id;
         break;
       }
     }
@@ -66,7 +69,16 @@ webhook.post('/webhook', async (c) => {
   const processingPromise = (async () => {
     for (const event of body.events) {
       try {
-        await handleEvent(db, lineClient, event, channelAccessToken, matchedAccountId, c.env.WORKER_URL || new URL(c.req.url).origin);
+        await handleEvent(
+          db,
+          lineClient,
+          event,
+          channelAccessToken,
+          matchedAccountId,
+          matchedChannelId,
+          c.env.WORKER_URL || new URL(c.req.url).origin,
+          c.env,
+        );
       } catch (err) {
         console.error('Error handling webhook event:', err);
       }
@@ -84,8 +96,24 @@ async function handleEvent(
   event: WebhookEvent,
   lineAccessToken: string,
   lineAccountId: string | null = null,
+  lineChannelId: string | null = null,
   workerUrl?: string,
+  env?: Env['Bindings'],
 ): Promise<void> {
+  if (event.type === 'message' && event.source.type === 'user' && env) {
+    try {
+      await notifyKamenConsultationOwner({
+        env,
+        lineClient,
+        lineChannelId,
+        sourceUserId: event.source.userId,
+      });
+    } catch (err) {
+      // 通知失敗で相談受付・チャット保存を止めない。
+      console.error('Failed to notify mask consultation owner:', err);
+    }
+  }
+
   if (event.type === 'follow') {
     const userId =
       event.source.type === 'user' ? event.source.userId : undefined;

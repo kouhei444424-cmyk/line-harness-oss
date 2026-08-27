@@ -49,6 +49,9 @@ export type Env = {
     LINE_LOGIN_CHANNEL_SECRET: string;
     WORKER_URL: string;
     X_HARNESS_URL?: string;  // Optional: X Harness API URL for account linking
+    KAMEN_CONSULTATION_NOTIFY_ENABLED?: string;
+    KAMEN_CONSULTATION_LINE_CHANNEL_ID?: string;
+    KAMEN_CONSULTATION_OWNER_LINE_USER_ID?: string;
   };
   Variables: {
     staff: { id: string; name: string; role: 'owner' | 'admin' | 'staff' };
