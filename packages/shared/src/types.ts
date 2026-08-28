@@ -671,6 +671,74 @@ export interface StaffProfile {
   email: string | null;
 }
 
+export interface BizStore {
+  store_id: string;
+  name: string;
+  sales: number;
+  cost_rent: number;
+  cost_labor: number;
+  cost_ad: number;
+  cost_other: number;
+  cost_total: number;
+  profit: number;
+  margin_pct: number;
+  target: number;
+  achievement_pct: number;
+  memo: string | null;
+  members: {
+    total: number;
+    new: number;
+    cancelled: number;
+  };
+}
+
+export interface BizSummaryResponse {
+  year_month: string;
+  stores: BizStore[];
+  total: {
+    sales: number;
+    cost_rent: number;
+    cost_labor: number;
+    cost_ad: number;
+    cost_other: number;
+    cost_total: number;
+    profit: number;
+    target: number;
+    margin_pct: number;
+    achievement_pct: number;
+    members: {
+      total: number;
+      new: number;
+      cancelled: number;
+    };
+  };
+}
+
+export interface BizStaffSalesItem {
+  id: number;
+  store_id: string;
+  store_name: string;
+  name: string;
+  role: string;
+  sales: number;
+  sessions: number;
+  target: number;
+  achieved: boolean;
+  achievement_pct: number;
+}
+
+export interface BizStaffSalesResponse {
+  year_month: string;
+  store_id: string;
+  staff: BizStaffSalesItem[];
+}
+
+export interface BizStoreOption {
+  id: string;
+  name: string;
+  targetMonthlyRevenue: number;
+}
+
 // =============================================================================
 // API レスポンスラッパー型
 // =============================================================================

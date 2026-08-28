@@ -2,18 +2,20 @@ name = "line-crm-worker"
 main = "src/index.ts"
 compatibility_date = "2024-12-01"
 workers_dev = true
-account_id = "37f8f88be4c099329e4647bda211bb9f"
+account_id = "9f1cb376fb2aaa18ea037ba7967f6f4f"
 
 # API_KEY is set via `wrangler secret put API_KEY`
 # Do NOT hardcode secrets here
 
 [vars]
-WORKER_URL = "https://line-crm-worker.line-crm-api.workers.dev"
+WORKER_URL = "https://line-crm-worker.kouhei-line-crm.workers.dev"
+KAMEN_CONSULTATION_NOTIFY_ENABLED = "true"
+KAMEN_CONSULTATION_LINE_CHANNEL_ID = "2011187037"
 
 [[d1_databases]]
 binding = "DB"
-database_name = "line-crm"
-database_id = "YOUR_D1_DATABASE_ID"
+database_name = "line-crm-urashakai"
+database_id = "c212e430-8a64-45f7-9853-08dcea59afa0"
 
 [triggers]
 crons = ["*/5 * * * *"]

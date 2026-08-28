@@ -44,6 +44,24 @@ function serializeTag(row: DbTag) {
   };
 }
 
+type BatchTagRow = DbTag & { friend_id: string };
+type ActivityRow = {
+  friendId: string;
+  lastIncomingAt: string | null;
+  lastOutgoingAt: string | null;
+  incomingCount: number;
+  outgoingCount: number;
+};
+
+function activityFromRow(row: ActivityRow | undefined) {
+  return {
+    lastIncomingAt: row?.lastIncomingAt ?? null,
+    lastOutgoingAt: row?.lastOutgoingAt ?? null,
+    incomingCount: row?.incomingCount ?? 0,
+    outgoingCount: row?.outgoingCount ?? 0,
+  };
+}
+
 // GET /api/friends - list with pagination
 friends.get('/api/friends', async (c) => {
   try {
@@ -143,6 +161,105 @@ friends.get('/api/friends/ref-stats', async (c) => {
     });
   } catch (err) {
     console.error('GET /api/friends/ref-stats error:', err);
+    return c.json({ success: false, error: 'Internal server error' }, 500);
+  }
+});
+
+// POST /api/friends/batch-activity - friend metadata, tags and activity without message content
+friends.post('/api/friends/batch-activity', async (c) => {
+  let body: { friendIds?: unknown };
+  try {
+    body = await c.req.json<{ friendIds?: unknown }>();
+  } catch {
+    return c.json({ success: false, error: 'Invalid JSON' }, 400);
+  }
+
+  if (!Array.isArray(body.friendIds)) {
+    return c.json({ success: false, error: 'friendIds must be an array' }, 400);
+  }
+
+  if (body.friendIds.some((value) => typeof value !== 'string')) {
+    return c.json({ success: false, error: 'friendIds must contain only strings' }, 400);
+  }
+  const normalizedIds = (body.friendIds as string[]).map((value) => value.trim());
+  const friendIds = [...new Set(normalizedIds)];
+  if (
+    friendIds.length !== normalizedIds.length ||
+    friendIds.some((id) => id.length === 0 || id.length > 128) ||
+    friendIds.length > 100
+  ) {
+    return c.json({ success: false, error: 'friendIds must contain up to 100 unique valid ids' }, 400);
+  }
+  if (friendIds.length === 0) {
+    return c.json({ success: true, data: { items: [] } });
+  }
+
+  try {
+    const placeholders = friendIds.map(() => '?').join(', ');
+    const db = c.env.DB;
+    const [friendRows, tagRows, activityRows] = await Promise.all([
+      db
+        .prepare(`SELECT * FROM friends WHERE id IN (${placeholders})`)
+        .bind(...friendIds)
+        .all<DbFriend>(),
+      db
+        .prepare(
+          `SELECT ft.friend_id, t.*
+           FROM friend_tags ft
+           INNER JOIN tags t ON t.id = ft.tag_id
+           WHERE ft.friend_id IN (${placeholders})
+           ORDER BY t.name ASC`,
+        )
+        .bind(...friendIds)
+        .all<BatchTagRow>(),
+      db
+        .prepare(
+          `SELECT friend_id as friendId,
+                  MAX(CASE WHEN direction = 'incoming' THEN created_at END) as lastIncomingAt,
+                  MAX(CASE WHEN direction = 'outgoing' THEN created_at END) as lastOutgoingAt,
+                  SUM(CASE WHEN direction = 'incoming' THEN 1 ELSE 0 END) as incomingCount,
+                  SUM(CASE WHEN direction = 'outgoing' THEN 1 ELSE 0 END) as outgoingCount
+           FROM messages_log
+           WHERE friend_id IN (${placeholders})
+           GROUP BY friend_id`,
+        )
+        .bind(...friendIds)
+        .all<ActivityRow>(),
+    ]);
+
+    const friendsById = new Map(friendRows.results.map((row) => [row.id, row]));
+    const tagsByFriendId = new Map<string, DbTag[]>();
+    for (const row of tagRows.results) {
+      const tags = tagsByFriendId.get(row.friend_id) ?? [];
+      tags.push(row);
+      tagsByFriendId.set(row.friend_id, tags);
+    }
+    const activityByFriendId = new Map(
+      activityRows.results.map((row) => [row.friendId, row]),
+    );
+
+    return c.json({
+      success: true,
+      data: {
+        items: friendIds.map((friendId) => {
+          const friend = friendsById.get(friendId);
+          return {
+            friendId,
+            friend: friend
+              ? {
+                  ...serializeFriend(friend),
+                  tags: (tagsByFriendId.get(friendId) ?? []).map(serializeTag),
+                }
+              : null,
+            activity: friend
+              ? activityFromRow(activityByFriendId.get(friendId))
+              : null,
+          };
+        }),
+      },
+    });
+  } catch (err) {
+    console.error('POST /api/friends/batch-activity error:', err);
     return c.json({ success: false, error: 'Internal server error' }, 500);
   }
 });
@@ -281,6 +398,41 @@ friends.get('/api/friends/:id/messages', async (c) => {
     return c.json({ success: true, data: result.results });
   } catch (err) {
     console.error('GET /api/friends/:id/messages error:', err);
+    return c.json({ success: false, error: 'Internal server error' }, 500);
+  }
+});
+
+// GET /api/friends/:id/activity - aggregated message activity (no message content)
+friends.get('/api/friends/:id/activity', async (c) => {
+  try {
+    const friendId = c.req.param('id');
+    const db = c.env.DB;
+
+    const activity = await db
+      .prepare(
+        `SELECT f.id as friendId,
+                MAX(CASE WHEN m.direction = 'incoming' THEN m.created_at END) as lastIncomingAt,
+                MAX(CASE WHEN m.direction = 'outgoing' THEN m.created_at END) as lastOutgoingAt,
+                SUM(CASE WHEN m.direction = 'incoming' THEN 1 ELSE 0 END) as incomingCount,
+                SUM(CASE WHEN m.direction = 'outgoing' THEN 1 ELSE 0 END) as outgoingCount
+         FROM friends f
+         LEFT JOIN messages_log m ON m.friend_id = f.id
+         WHERE f.id = ?
+         GROUP BY f.id`,
+      )
+      .bind(friendId)
+      .first<ActivityRow>();
+
+    if (!activity) {
+      return c.json({ success: false, error: 'Friend not found' }, 404);
+    }
+
+    return c.json({
+      success: true,
+      data: activityFromRow(activity),
+    });
+  } catch (err) {
+    console.error('GET /api/friends/:id/activity error:', err);
     return c.json({ success: false, error: 'Internal server error' }, 500);
   }
 });

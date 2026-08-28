@@ -137,6 +137,53 @@ webhooks.delete('/api/webhooks/outgoing/:id', async (c) => {
   }
 });
 
+// ========== 送信WebhookテストエンドポイントP ==========
+
+webhooks.post('/api/webhooks/outgoing/:id/test', async (c) => {
+  try {
+    const id = c.req.param('id');
+    const wh = await getOutgoingWebhookById(c.env.DB, id);
+    if (!wh) return c.json({ success: false, error: 'Not found' }, 404);
+
+    const testPayload = {
+      event: 'test',
+      fired_at: new Date().toISOString(),
+      source: 'ageru-crm',
+      version: '1.0',
+      data: { message: 'This is a test webhook from AGERU CRM' },
+    };
+    const bodyStr = JSON.stringify(testPayload);
+
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+
+    if (wh.secret) {
+      const encoder = new TextEncoder();
+      const key = await crypto.subtle.importKey(
+        'raw',
+        encoder.encode(wh.secret),
+        { name: 'HMAC', hash: 'SHA-256' },
+        false,
+        ['sign'],
+      );
+      const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(bodyStr));
+      const hexSignature = Array.from(new Uint8Array(signature))
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('');
+      headers['X-AGERU-Signature'] = hexSignature;
+    }
+
+    try {
+      const res = await fetch(wh.url, { method: 'POST', headers, body: bodyStr });
+      return c.json({ success: true, data: { status: res.status, ok: res.ok } });
+    } catch (e) {
+      return c.json({ success: false, data: { status: 0, ok: false, error: String(e) } }, 500);
+    }
+  } catch (err) {
+    console.error('POST /api/webhooks/outgoing/:id/test error:', err);
+    return c.json({ success: false, error: 'Internal server error' }, 500);
+  }
+});
+
 // ========== 受信Webhookエンドポイント (外部システムからの受信) ==========
 
 webhooks.post('/api/webhooks/incoming/:id/receive', async (c) => {

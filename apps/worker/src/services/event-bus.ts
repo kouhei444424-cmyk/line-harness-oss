@@ -69,7 +69,9 @@ async function fireOutgoingWebhooks(
       try {
         const body = JSON.stringify({
           event: eventType,
-          timestamp: jstNow(),
+          fired_at: new Date().toISOString(),
+          source: 'ageru-crm',
+          version: '1.0',
           data: payload,
         });
 
@@ -89,7 +91,7 @@ async function fireOutgoingWebhooks(
           const hexSignature = Array.from(new Uint8Array(signature))
             .map((b) => b.toString(16).padStart(2, '0'))
             .join('');
-          headers['X-Webhook-Signature'] = hexSignature;
+          headers['X-AGERU-Signature'] = hexSignature;
         }
 
         await fetch(wh.url, { method: 'POST', headers, body });

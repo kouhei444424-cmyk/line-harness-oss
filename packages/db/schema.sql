@@ -14,7 +14,9 @@ CREATE TABLE IF NOT EXISTS friends (
   user_id          TEXT,
   score            INTEGER NOT NULL DEFAULT 0,
   created_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%f', 'now', '+9 hours')),
-  updated_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%f', 'now', '+9 hours'))
+  updated_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%f', 'now', '+9 hours')),
+  synced_at        TEXT DEFAULT NULL,
+  export_tag       TEXT DEFAULT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_friends_line_user_id ON friends (line_user_id);
@@ -555,3 +557,95 @@ CREATE TABLE IF NOT EXISTS staff_members (
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_staff_members_api_key ON staff_members(api_key);
 CREATE INDEX IF NOT EXISTS idx_staff_members_role ON staff_members(role);
+
+-- ============================================================
+-- Business Management
+-- ============================================================
+CREATE TABLE IF NOT EXISTS stores (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  target_monthly_revenue INTEGER NOT NULL DEFAULT 2100000,
+  created_at TEXT DEFAULT (datetime('now')),
+  synced_at TEXT DEFAULT NULL,
+  export_tag TEXT DEFAULT NULL
+);
+
+CREATE TABLE IF NOT EXISTS monthly_pl (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  store_id TEXT NOT NULL REFERENCES stores(id),
+  year_month TEXT NOT NULL,
+  sales INTEGER NOT NULL DEFAULT 0,
+  cost_rent INTEGER NOT NULL DEFAULT 0,
+  cost_labor INTEGER NOT NULL DEFAULT 0,
+  cost_ad INTEGER NOT NULL DEFAULT 0,
+  cost_other INTEGER NOT NULL DEFAULT 0,
+  memo TEXT,
+  updated_at TEXT DEFAULT (datetime('now')),
+  synced_at TEXT DEFAULT NULL,
+  export_tag TEXT DEFAULT NULL,
+  UNIQUE(store_id, year_month)
+);
+
+CREATE TABLE IF NOT EXISTS staff (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  store_id TEXT NOT NULL REFERENCES stores(id),
+  name TEXT NOT NULL,
+  role TEXT DEFAULT 'trainer',
+  target_monthly_sales INTEGER DEFAULT 700000,
+  is_active INTEGER DEFAULT 1,
+  created_at TEXT DEFAULT (datetime('now')),
+  synced_at TEXT DEFAULT NULL,
+  export_tag TEXT DEFAULT NULL
+);
+
+CREATE TABLE IF NOT EXISTS staff_monthly_sales (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  staff_id INTEGER NOT NULL REFERENCES staff(id),
+  year_month TEXT NOT NULL,
+  sales INTEGER NOT NULL DEFAULT 0,
+  sessions INTEGER DEFAULT 0,
+  updated_at TEXT DEFAULT (datetime('now')),
+  synced_at TEXT DEFAULT NULL,
+  export_tag TEXT DEFAULT NULL,
+  UNIQUE(staff_id, year_month)
+);
+
+CREATE TABLE IF NOT EXISTS member_snapshots (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  store_id TEXT NOT NULL REFERENCES stores(id),
+  year_month TEXT NOT NULL,
+  total INTEGER DEFAULT 0,
+  new_members INTEGER DEFAULT 0,
+  cancelled INTEGER DEFAULT 0,
+  updated_at TEXT DEFAULT (datetime('now')),
+  synced_at TEXT DEFAULT NULL,
+  export_tag TEXT DEFAULT NULL,
+  UNIQUE(store_id, year_month)
+);
+
+INSERT OR IGNORE INTO stores (id, name, target_monthly_revenue, created_at) VALUES ('ogaki', '大垣店', 2100000, datetime('now'));
+INSERT OR IGNORE INTO stores (id, name, target_monthly_revenue, created_at) VALUES ('gifu', '岐阜店', 2100000, datetime('now'));
+INSERT OR IGNORE INTO stores (id, name, target_monthly_revenue, created_at) VALUES ('ginan', '岐南店', 2100000, datetime('now'));
+
+CREATE TABLE IF NOT EXISTS funnels (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  store_id TEXT NOT NULL REFERENCES stores(id),
+  name TEXT NOT NULL,
+  template TEXT DEFAULT 'custom',
+  steps_json TEXT NOT NULL DEFAULT '[]',
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now')),
+  synced_at TEXT DEFAULT NULL,
+  export_tag TEXT DEFAULT NULL
+);
+
+CREATE TABLE IF NOT EXISTS webhooks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  url TEXT NOT NULL,
+  events TEXT NOT NULL,
+  secret_token TEXT NOT NULL,
+  is_active INTEGER DEFAULT 1,
+  created_at TEXT DEFAULT (datetime('now')),
+  last_fired_at TEXT DEFAULT NULL
+);
